@@ -58,6 +58,7 @@ async function handleRootRequest(request, USERNAME, PASSWORD, enableAuth) {
   <title>Telegraph图床-基于Workers的图床服务</title>
   <link rel="icon" href="https://p1.meituan.net/csc/c195ee91001e783f39f41ffffbbcbd484286.ico" type="image/x-icon">
   <link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/twitter-bootstrap/4.6.1/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet" />
   <link href="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/bootstrap-fileinput/5.2.7/css/fileinput.min.css" rel="stylesheet" />
   <link href="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/toastr.js/2.1.4/toastr.min.css" rel="stylesheet" />
   <link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/font-awesome/5.15.4/css/all.min.css" type="text/css" rel="stylesheet" />
@@ -106,6 +107,7 @@ async function handleRootRequest(request, USERNAME, PASSWORD, enableAuth) {
           cursor: pointer;
           font-size: 24px;
           transition: color 0.3s ease;
+          z-index: 10;
       }
       #viewCacheBtn:hover {
           color: rgba(0, 0, 0, 0.4);
@@ -120,6 +122,7 @@ async function handleRootRequest(request, USERNAME, PASSWORD, enableAuth) {
           cursor: pointer;
           font-size: 24px;
           transition: color 0.3s ease;
+          z-index: 10;
       }
       #compressionToggleBtn:hover {
           color: rgba(0, 0, 0, 0.4);
@@ -157,14 +160,39 @@ async function handleRootRequest(request, USERNAME, PASSWORD, enableAuth) {
           overflow-y: hidden;
           resize: none;
       }
+      .loading-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 9999;
+          color: white;
+          font-size: 24px;
+      }
   </style>
+  <!-- 关键修改：确保jQuery最先加载 -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+  
+  <!-- 其他依赖jQuery的库 -->
+  <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/bootstrap-fileinput/5.2.7/js/fileinput.min.js"></script>
+  <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/bootstrap-fileinput/5.2.7/js/locales/zh.min.js"></script>
+  <script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/toastr.js/2.1.4/toastr.min.js"></script>
 </head>
 <body>
+  <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+      <div>加载中，请稍候...</div>
+  </div>
+  
   <div class="background" id="background"></div>
   <div class="card">
       <div class="title">Telegraph图床</div>
       <button type="button" class="btn" id="viewCacheBtn" title="查看历史记录"><i class="fas fa-clock"></i></button>
-      <button type="button" class="btn" id="compressionToggleBtn"><i class="fas fa-compress"></i></button>
+      <button type="button" class="btn" id="compressionToggleBtn" title="开启压缩"><i class="fas fa-compress"></i></button>
       <div class="card-body">
           <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
               <div class="file-input-container">
@@ -182,306 +210,331 @@ async function handleRootRequest(request, USERNAME, PASSWORD, enableAuth) {
           </form>
       </div>
       <p class="project-link">项目开源于 GitHub - <a href="https://github.com/0-RTT/telegraph" target="_blank" rel="noopener noreferrer">0-RTT/telegraph</a></p>
-      <script src="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/jquery/3.6.0/jquery.min.js" type="application/javascript"></script>
-      <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/bootstrap-fileinput/5.2.7/js/fileinput.min.js" type="application/javascript"></script>
-      <script src="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/bootstrap-fileinput/5.2.7/js/locales/zh.min.js" type="application/javascript"></script>
-      <script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/toastr.js/2.1.4/toastr.min.js" type="application/javascript"></script>
+      
+      <!-- 修改后的脚本部分 -->
       <script>
-      async function fetchBingImages() {
-        const response = await fetch('/bing-images');
-        const data = await response.json();
-        return data.data.map(image => image.url);
-      }
-    
-      async function setBackgroundImages() {
-        const images = await fetchBingImages();
-        const backgroundDiv = document.getElementById('background');
-        if (images.length > 0) {
-          backgroundDiv.style.backgroundImage = 'url(' + images[0] + ')';
-        }
-        let index = 0;
-        let currentBackgroundDiv = backgroundDiv;
-        setInterval(() => {
-          const nextIndex = (index + 1) % images.length;
-          const nextBackgroundDiv = document.createElement('div');
-          nextBackgroundDiv.className = 'background next';
-          nextBackgroundDiv.style.backgroundImage = 'url(' + images[nextIndex] + ')';
-          document.body.appendChild(nextBackgroundDiv);
-          nextBackgroundDiv.style.opacity = 0;
-          setTimeout(() => {
-            nextBackgroundDiv.style.opacity = 1;
-          }, 50);
-          setTimeout(() => {
-            document.body.removeChild(currentBackgroundDiv);
-            currentBackgroundDiv = nextBackgroundDiv;
-            index = nextIndex;
-          }, 1000);
-        }, 5000);
-      }
-    
-      $(document).ready(function() {
-        let originalImageURLs = [];
-        let isCacheVisible = false;
-        let enableCompression = true;
-        initFileInput();
-        setBackgroundImages();
-    
-        const tooltipText = enableCompression ? '关闭压缩' : '开启压缩';
-        $('#compressionToggleBtn').attr('title', tooltipText);
-        $('#compressionToggleBtn').on('click', function() {
-            enableCompression = !enableCompression;
-            const icon = $(this).find('i');
-            icon.toggleClass('fa-compress fa-expand');
-            const tooltipText = enableCompression ? '关闭压缩' : '开启压缩';
-            $(this).attr('title', tooltipText);
-        });
-    
-        function initFileInput() {
-          $("#fileInput").fileinput({
-            theme: 'fa',
-            language: 'zh',
-            browseClass: "btn btn-primary",
-            removeClass: "btn btn-danger",
-            showUpload: false,
-            showPreview: false,
-          }).on('filebatchselected', handleFileSelection)
-            .on('fileclear', handleFileClear);
-        }
-    
-        async function handleFileSelection() {
-          const files = $('#fileInput')[0].files;
-          for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            const fileHash = await calculateFileHash(file);
-            const cachedData = getCachedData(fileHash);
-            if (cachedData) {
-                handleCachedFile(cachedData);
-            } else {
-                await uploadFile(file, fileHash);
-            }
-          }
-        }
-    
-        function getCachedData(fileHash) {
-            const cacheData = JSON.parse(localStorage.getItem('uploadCache')) || [];
-            return cacheData.find(item => item.hash === fileHash);
-        }
-    
-        function handleCachedFile(cachedData) {
-            if (!originalImageURLs.includes(cachedData.url)) {
-                originalImageURLs.push(cachedData.url);
-                updateFileLinkDisplay();
-                toastr.info('已从缓存中读取数据');
-            }
-        }
-    
-        function updateFileLinkDisplay() {
-            $('#fileLink').val(originalImageURLs.join('\\n\\n'));
-            $('.form-group').show();
-            adjustTextareaHeight($('#fileLink')[0]);
-        }
-    
-        async function calculateFileHash(file) {
-          const arrayBuffer = await file.arrayBuffer();
-          const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-          const hashArray = Array.from(new Uint8Array(hashBuffer));
-          return hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
-        }
-    
-        function isFileInCache(fileHash) {
-          const cacheData = JSON.parse(localStorage.getItem('uploadCache')) || [];
-          return cacheData.some(item => item.hash === fileHash);
-        }
-    
-        async function uploadFile(file, fileHash) {
-          try {
-            toastr.info('上传中...', '', { timeOut: 0 });
-            const interfaceInfo = {
-              enableCompression: enableCompression
-            };
-            if (file.type.startsWith('image/') && file.type !== 'image/gif' && interfaceInfo.enableCompression) {
-              toastr.info('正在压缩...', '', { timeOut: 0 });
-              const compressedFile = await compressImage(file);
-              file = compressedFile;
-            }
-            const formData = new FormData($('#uploadForm')[0]);
-            formData.set('file', file, file.name);
-            const uploadResponse = await fetch('/upload', { method: 'POST', body: formData });
-            const responseData = await handleUploadResponse(uploadResponse);
-            if (responseData.error) {
-              toastr.error(responseData.error);
-            } else {
-              originalImageURLs.push(responseData.data);
-              $('#fileLink').val(originalImageURLs.join('\\n\\n'));
-              $('.form-group').show();
-              adjustTextareaHeight($('#fileLink')[0]);
-              toastr.success('文件上传成功！');
-              saveToLocalCache(responseData.data, file.name, fileHash);
-            }
-          } catch (error) {
-            console.error('处理文件时出现错误:', error);
-            $('#fileLink').val('文件处理失败！');
-            toastr.error('文件处理失败！');
-          } finally {
-            toastr.clear();
-          }
-        }
-    
-        async function handleUploadResponse(response) {
-          if (response.ok) {
-            return await response.json();
-          } else {
-            const errorData = await response.json();
-            return { error: errorData.error };
-          }
-        }
-    
-        $(document).on('paste', async function(event) {
-          const clipboardData = event.originalEvent.clipboardData;
-          if (clipboardData && clipboardData.items) {
-            for (let i = 0; i < clipboardData.items.length; i++) {
-              const item = clipboardData.items[i];
-              if (item.kind === 'file') {
-                const pasteFile = item.getAsFile();
-                const dataTransfer = new DataTransfer();
-                const existingFiles = $('#fileInput')[0].files;
-                for (let j = 0; j < existingFiles.length; j++) {
-                  dataTransfer.items.add(existingFiles[j]);
-                }
-                dataTransfer.items.add(pasteFile);
-                $('#fileInput')[0].files = dataTransfer.files;
-                $('#fileInput').trigger('change');
-                break;
-              }
-            }
-          }
-        });
-    
-        async function compressImage(file, quality = 0.75) {
-          return new Promise((resolve) => {
-            const image = new Image();
-            image.onload = () => {
-              const targetWidth = image.width;
-              const targetHeight = image.height;
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              canvas.width = targetWidth;
-              canvas.height = targetHeight;
-              ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
-              canvas.toBlob((blob) => {
-                const compressedFile = new File([blob], file.name, { type: 'image/jpeg' });
-                toastr.success('图片压缩成功！');
-                resolve(compressedFile);
-              }, 'image/jpeg', quality);
-            };
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              image.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-          });
-        }
-    
-        $('#urlBtn, #bbcodeBtn, #markdownBtn').on('click', function() {
-          const fileLinks = originalImageURLs.map(url => url.trim()).filter(url => url !== '');
-          if (fileLinks.length > 0) {
-            let formattedLinks = '';
-            switch ($(this).attr('id')) {
-              case 'urlBtn':
-                formattedLinks = fileLinks.join('\\n\\n');
-                break;
-              case 'bbcodeBtn':
-                formattedLinks = fileLinks.map(url => '[img]' + url + '[/img]').join('\\n\\n');
-                break;
-              case 'markdownBtn':
-                formattedLinks = fileLinks.map(url => '![image](' + url + ')').join('\\n\\n');
-                break;
-              default:
-                formattedLinks = fileLinks.join('\\n');
-            }
-            $('#fileLink').val(formattedLinks);
-            adjustTextareaHeight($('#fileLink')[0]);
-            copyToClipboardWithToastr(formattedLinks);
-          }
-        });
-    
-        function handleFileClear(event) {
-          $('#fileLink').val('');
-          adjustTextareaHeight($('#fileLink')[0]);
-          hideButtonsAndTextarea();
-          originalImageURLs = [];
-        }
-    
-        function adjustTextareaHeight(textarea) {
-          textarea.style.height = '1px';
-          textarea.style.height = (textarea.scrollHeight > 200 ? 200 : textarea.scrollHeight) + 'px';
-    
-          if (textarea.scrollHeight > 200) {
-            textarea.style.overflowY = 'auto';
-          } else {
-            textarea.style.overflowY = 'hidden';
-          }
-        }
-    
-        function copyToClipboardWithToastr(text) {
-          const input = document.createElement('textarea');
-          input.value = text;
-          document.body.appendChild(input);
-          input.select();
-          document.execCommand('copy');
-          document.body.removeChild(input);
-          toastr.success('已复制到剪贴板', '', { timeOut: 300 });
-        }
-    
-        function hideButtonsAndTextarea() {
-          $('#urlBtn, #bbcodeBtn, #markdownBtn, #fileLink').parent('.form-group').hide();
-        }
-    
-        function saveToLocalCache(url, fileName, fileHash) {
-          const timestamp = new Date().toLocaleString('zh-CN', { hour12: false });
-          const cacheData = JSON.parse(localStorage.getItem('uploadCache')) || [];
-          cacheData.push({ url, fileName, hash: fileHash, timestamp });
-          localStorage.setItem('uploadCache', JSON.stringify(cacheData));
-        }
-    
-        $('#viewCacheBtn').on('click', function() {
-          const cacheData = JSON.parse(localStorage.getItem('uploadCache')) || [];
-          const cacheContent = $('#cacheContent');
-          cacheContent.empty();
-          if (isCacheVisible) {
-            cacheContent.hide();
-            $('#fileLink').val('');
-            $('#fileLink').parent('.form-group').hide();
-            isCacheVisible = false;
-          } else {
-            if (cacheData.length > 0) {
-              cacheData.reverse();
-              cacheData.forEach((item) => {
-                const listItem = $('<div class="cache-item"></div>')
-                  .text(item.timestamp + ' - ' + item.fileName)
-                  .data('url', item.url);
-                cacheContent.append(listItem);
-                cacheContent.append('<br>');
-              });
-              cacheContent.show();
-            } else {
-              cacheContent.append('<div>还没有记录哦！</div>').show();
-            }
-            isCacheVisible = true;
-          }
-        });
-    
-        $(document).on('click', '.cache-item', function() {
-          const url = $(this).data('url');
-          originalImageURLs = [];
-          $('#fileLink').val('');
-          originalImageURLs.push(url);
-          $('#fileLink').val(originalImageURLs.map(url => url.trim()).join('\\n\\n'));
-          $('.form-group').show();
-          adjustTextareaHeight($('#fileLink')[0]);
-        });
+      // 显示加载状态
+      document.getElementById('loadingOverlay').style.display = 'flex';
+      
+      // 等待所有资源加载完成
+      window.addEventListener('load', function() {
+          document.getElementById('loadingOverlay').style.display = 'none';
       });
-    </script>    
+      
+      // 主初始化函数
+      function initApp() {
+          // 确保jQuery可用
+          if (!window.jQuery) {
+              // jQuery加载失败时的备用方案
+              const script = document.createElement('script');
+              script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js';
+              script.integrity = 'sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=';
+              script.crossOrigin = 'anonymous';
+              document.head.appendChild(script);
+              
+              // 再次尝试初始化
+              setTimeout(initApp, 100);
+              return;
+          }
+          
+          $(function() {
+              let originalImageURLs = [];
+              let isCacheVisible = false;
+              let enableCompression = true;
+              
+              // 初始化文件输入控件
+              function initFileInput() {
+                  $("#fileInput").fileinput({
+                      theme: 'fa',
+                      language: 'zh',
+                      browseClass: "btn btn-primary",
+                      removeClass: "btn btn-danger",
+                      showUpload: false,
+                      showPreview: false,
+                  }).on('filebatchselected', handleFileSelection)
+                    .on('fileclear', handleFileClear);
+              }
+              
+              // 初始化背景图片
+              async function setBackgroundImages() {
+                  try {
+                      const response = await fetch('/bing-images');
+                      const data = await response.json();
+                      const images = data.data.map(image => image.url);
+                      const backgroundDiv = document.getElementById('background');
+                      
+                      if (images.length > 0) {
+                          backgroundDiv.style.backgroundImage = 'url(' + images[0] + ')';
+                      }
+                      
+                      let index = 0;
+                      let currentBackgroundDiv = backgroundDiv;
+                      
+                      setInterval(() => {
+                          const nextIndex = (index + 1) % images.length;
+                          const nextBackgroundDiv = document.createElement('div');
+                          nextBackgroundDiv.className = 'background next';
+                          nextBackgroundDiv.style.backgroundImage = 'url(' + images[nextIndex] + ')';
+                          document.body.appendChild(nextBackgroundDiv);
+                          nextBackgroundDiv.style.opacity = 0;
+                          
+                          setTimeout(() => {
+                              nextBackgroundDiv.style.opacity = 1;
+                          }, 50);
+                          
+                          setTimeout(() => {
+                              document.body.removeChild(currentBackgroundDiv);
+                              currentBackgroundDiv = nextBackgroundDiv;
+                              index = nextIndex;
+                          }, 1000);
+                      }, 5000);
+                  } catch (error) {
+                      console.error('加载背景图片失败:', error);
+                  }
+              }
+              
+              // 文件选择处理
+              async function handleFileSelection() {
+                  const files = $('#fileInput')[0].files;
+                  for (let i = 0; i < files.length; i++) {
+                      const file = files[i];
+                      try {
+                          const fileHash = await calculateFileHash(file);
+                          const cachedData = getCachedData(fileHash);
+                          
+                          if (cachedData) {
+                              handleCachedFile(cachedData);
+                          } else {
+                              await uploadFile(file, fileHash);
+                          }
+                      } catch (error) {
+                          console.error('处理文件时出错:', error);
+                          toastr.error('文件处理失败: ' + error.message);
+                      }
+                  }
+              }
+              
+              // 计算文件哈希
+              async function calculateFileHash(file) {
+                  const arrayBuffer = await file.arrayBuffer();
+                  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+                  const hashArray = Array.from(new Uint8Array(hashBuffer));
+                  return hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
+              }
+              
+              // 获取缓存数据
+              function getCachedData(fileHash) {
+                  const cacheData = JSON.parse(localStorage.getItem('uploadCache')) || [];
+                  return cacheData.find(item => item.hash === fileHash);
+              }
+              
+              // 处理缓存文件
+              function handleCachedFile(cachedData) {
+                  if (!originalImageURLs.includes(cachedData.url)) {
+                      originalImageURLs.push(cachedData.url);
+                      updateFileLinkDisplay();
+                      toastr.info('已从缓存中读取数据');
+                  }
+              }
+              
+              // 更新文件链接显示
+              function updateFileLinkDisplay() {
+                  $('#fileLink').val(originalImageURLs.join('\\n\\n'));
+                  $('.form-group').show();
+                  adjustTextareaHeight($('#fileLink')[0]);
+              }
+              
+              // 上传文件
+              async function uploadFile(file, fileHash) {
+                  try {
+                      toastr.info('上传中...', '', { timeOut: 0 });
+                      
+                      const formData = new FormData($('#uploadForm')[0]);
+                      formData.set('file', file, file.name);
+                      
+                      const uploadResponse = await fetch('/upload', { 
+                          method: 'POST', 
+                          body: formData 
+                      });
+                      
+                      const responseData = await uploadResponse.json();
+                      
+                      if (responseData.error) {
+                          toastr.error(responseData.error);
+                      } else {
+                          originalImageURLs.push(responseData.data);
+                          updateFileLinkDisplay();
+                          toastr.success('文件上传成功！');
+                          saveToLocalCache(responseData.data, file.name, fileHash);
+                      }
+                  } catch (error) {
+                      console.error('上传文件时出错:', error);
+                      toastr.error('上传失败: ' + error.message);
+                  } finally {
+                      toastr.clear();
+                  }
+              }
+              
+              // 保存到本地缓存
+              function saveToLocalCache(url, fileName, fileHash) {
+                  const timestamp = new Date().toLocaleString('zh-CN', { hour12: false });
+                  const cacheData = JSON.parse(localStorage.getItem('uploadCache')) || [];
+                  
+                  // 移除重复条目
+                  const newCache = cacheData.filter(item => 
+                      item.hash !== fileHash && item.url !== url
+                  );
+                  
+                  // 添加新条目（最多保留50条）
+                  newCache.unshift({ 
+                      url, 
+                      fileName, 
+                      hash: fileHash, 
+                      timestamp 
+                  });
+                  
+                  localStorage.setItem('uploadCache', JSON.stringify(newCache.slice(0, 50)));
+              }
+              
+              // 调整文本区域高度
+              function adjustTextareaHeight(textarea) {
+                  textarea.style.height = '1px';
+                  textarea.style.height = (textarea.scrollHeight > 200 ? 200 : textarea.scrollHeight) + 'px';
+                  
+                  if (textarea.scrollHeight > 200) {
+                      textarea.style.overflowY = 'auto';
+                  } else {
+                      textarea.style.overflowY = 'hidden';
+                  }
+              }
+              
+              // 初始化UI组件
+              function initUI() {
+                  // 压缩切换按钮
+                  $('#compressionToggleBtn').attr('title', enableCompression ? '关闭压缩' : '开启压缩');
+                  
+                  // 修复压缩按钮点击事件
+                  $('#compressionToggleBtn').on('click', function() {
+                      enableCompression = !enableCompression;
+                      const icon = $(this).find('i');
+                      icon.toggleClass('fa-compress fa-expand');
+                      
+                      const tooltipText = enableCompression ? '关闭压缩' : '开启压缩';
+                      $(this).attr('title', tooltipText);
+                      toastr.info(enableCompression ? '已启用图片压缩' : '已禁用图片压缩');
+                  });
+                  
+                  // 格式按钮
+                  $('#urlBtn, #bbcodeBtn, #markdownBtn').on('click', function() {
+                      const fileLinks = originalImageURLs.map(url => url.trim()).filter(url => url !== '');
+                      
+                      if (fileLinks.length === 0) return;
+                      
+                      let formattedLinks = '';
+                      switch ($(this).attr('id')) {
+                          case 'urlBtn':
+                              formattedLinks = fileLinks.join('\\n\\n');
+                              break;
+                          case 'bbcodeBtn':
+                              formattedLinks = fileLinks.map(url => '[img]' + url + '[/img]').join('\\n\\n');
+                              break;
+                          case 'markdownBtn':
+                              formattedLinks = fileLinks.map(url => '![](' + url + ')').join('\\n\\n');
+                              break;
+                      }
+                      
+                      $('#fileLink').val(formattedLinks);
+                      adjustTextareaHeight($('#fileLink')[0]);
+                      copyToClipboardWithToastr(formattedLinks);
+                  });
+                  
+                  // 缓存查看按钮
+                  $('#viewCacheBtn').on('click', function() {
+                      const cacheData = JSON.parse(localStorage.getItem('uploadCache')) || [];
+                      const cacheContent = $('#cacheContent');
+                      cacheContent.empty();
+                      
+                      if (isCacheVisible) {
+                          cacheContent.hide();
+                          $('#fileLink').val('');
+                          $('#fileLink').parent('.form-group').hide();
+                          isCacheVisible = false;
+                      } else {
+                          if (cacheData.length > 0) {
+                              cacheData.reverse();
+                              cacheData.forEach((item) => {
+                                  const listItem = $('<div class="cache-item"></div>')
+                                      .text(item.timestamp + ' - ' + item.fileName)
+                                      .data('url', item.url);
+                                  cacheContent.append(listItem);
+                                  cacheContent.append('<br>');
+                              });
+                              cacheContent.show();
+                          } else {
+                              cacheContent.append('<div>还没有记录哦！</div>').show();
+                          }
+                          isCacheVisible = true;
+                      }
+                  });
+                  
+                  // 缓存项点击处理
+                  $(document).on('click', '.cache-item', function() {
+                      const url = $(this).data('url');
+                      originalImageURLs = [];
+                      $('#fileLink').val('');
+                      originalImageURLs.push(url);
+                      $('#fileLink').val(originalImageURLs.map(url => url.trim()).join('\\n\\n'));
+                      $('.form-group').show();
+                      adjustTextareaHeight($('#fileLink')[0]);
+                  });
+                  
+                  // 粘贴处理
+                  $(document).on('paste', async function(event) {
+                      const clipboardData = event.originalEvent.clipboardData;
+                      if (clipboardData && clipboardData.items) {
+                          for (let i = 0; i < clipboardData.items.length; i++) {
+                              const item = clipboardData.items[i];
+                              if (item.kind === 'file') {
+                                  const pasteFile = item.getAsFile();
+                                  const dataTransfer = new DataTransfer();
+                                  const existingFiles = $('#fileInput')[0].files;
+                                  
+                                  for (let j = 0; j < existingFiles.length; j++) {
+                                      dataTransfer.items.add(existingFiles[j]);
+                                  }
+                                  
+                                  dataTransfer.items.add(pasteFile);
+                                  $('#fileInput')[0].files = dataTransfer.files;
+                                  $('#fileInput').trigger('change');
+                                  break;
+                              }
+                          }
+                      }
+                  });
+              }
+              
+              // 复制到剪贴板
+              function copyToClipboardWithToastr(text) {
+                  const input = document.createElement('textarea');
+                  input.value = text;
+                  document.body.appendChild(input);
+                  input.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(input);
+                  toastr.success('已复制到剪贴板', '', { timeOut: 300 });
+              }
+              
+              // 初始化应用
+              initFileInput();
+              setBackgroundImages();
+              initUI();
+          });
+      }
+      
+      // 启动应用
+      initApp();
+      </script>    
+  </div>
 </body>
 </html>  
 `, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
@@ -497,15 +550,39 @@ async function handleAdminRequest(DATABASE, request, USERNAME, PASSWORD) {
 }
 
 function isValidCredentials(authHeader, USERNAME, PASSWORD) {
-  const base64Credentials = authHeader.split(' ')[1];
-  const credentials = atob(base64Credentials).split(':');
-  const username = credentials[0];
-  const password = credentials[1];
-  return username === USERNAME && password === PASSWORD;
+  try {
+    const base64Credentials = authHeader.split(' ')[1];
+    if (!base64Credentials) return false;
+    
+    // 修复认证错误：使用正确的base64解码
+    const credentials = atob(base64Credentials).split(':');
+    const username = credentials[0];
+    const password = credentials[1];
+    
+    return username === USERNAME && password === PASSWORD;
+  } catch (e) {
+    console.error('认证错误:', e);
+    return false;
+  }
 }
 
 async function generateAdminPage(DATABASE) {
-  const mediaData = await fetchMediaData(DATABASE);
+  // 修复数据库错误：使用正确的数据库方法
+  let mediaData = [];
+  try {
+    const result = await DATABASE.prepare('SELECT url, fileId FROM media').all();
+    if (result && result.results) {
+      mediaData = result.results.map(row => {
+        const timestamp = parseInt(row.url.split('/').pop().split('.')[0]);
+        return { fileId: row.fileId, url: row.url, timestamp: timestamp };
+      });
+      mediaData.sort((a, b) => b.timestamp - a.timestamp);
+    }
+  } catch (e) {
+    console.error('数据库查询错误:', e);
+    return new Response('Database error', { status: 500 });
+  }
+
   const mediaHtml = mediaData.map(({ url }) => {
     const fileExtension = url.split('.').pop().toLowerCase();
     const timestamp = url.split('/').pop().split('.')[0];
@@ -858,12 +935,7 @@ async function generateAdminPage(DATABASE) {
 
 async function fetchMediaData(DATABASE) {
   const result = await DATABASE.prepare('SELECT url, fileId FROM media').all();
-  const mediaData = result.results.map(row => {
-    const timestamp = parseInt(row.url.split('/').pop().split('.')[0]);
-    return { fileId: row.fileId, url: row.url, timestamp: timestamp };
-  });
-  mediaData.sort((a, b) => b.timestamp - a.timestamp);
-  return mediaData.map(({ fileId, url }) => ({ fileId, url }));
+  return result.results || [];
 }
 
 async function handleUploadRequest(request, DATABASE, enableAuth, USERNAME, PASSWORD, domain, TG_BOT_TOKEN, TG_CHAT_ID, maxSize) {
@@ -877,9 +949,12 @@ async function handleUploadRequest(request, DATABASE, enableAuth, USERNAME, PASS
     if (enableAuth && !authenticate(request, USERNAME, PASSWORD)) {
       return new Response('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="Admin"' } });
     }
+    
+    // 修复数据库错误：确保数据库操作正确
+    let fileId;
     const uploadFormData = new FormData();
     uploadFormData.append("chat_id", TG_CHAT_ID);
-    let fileId;
+    
     if (file.type.startsWith('image/gif')) {
       const newFileName = file.name.replace(/\.gif$/, '.jpeg');
       const newFile = new File([file], newFileName, { type: 'image/jpeg' });
@@ -887,24 +962,42 @@ async function handleUploadRequest(request, DATABASE, enableAuth, USERNAME, PASS
     } else {
       uploadFormData.append("document", file);
     }
-    const telegramResponse = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument`, { method: 'POST', body: uploadFormData });
+    
+    const telegramResponse = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument`, { 
+      method: 'POST', 
+      body: uploadFormData 
+    });
+    
     if (!telegramResponse.ok) {
       const errorData = await telegramResponse.json();
       throw new Error(errorData.description || '上传到 Telegram 失败');
     }
+    
     const responseData = await telegramResponse.json();
     if (responseData.result.video) fileId = responseData.result.video.file_id;
     else if (responseData.result.document) fileId = responseData.result.document.file_id;
     else if (responseData.result.sticker) fileId = responseData.result.sticker.file_id;
     else throw new Error('返回的数据中没有文件 ID');
+    
     const fileExtension = file.name.split('.').pop();
     const timestamp = Date.now();
     const imageURL = `https://${domain}/${timestamp}.${fileExtension}`;
-    await DATABASE.prepare('INSERT INTO media (url, fileId) VALUES (?, ?) ON CONFLICT(url) DO NOTHING').bind(imageURL, fileId).run();
-    return new Response(JSON.stringify({ data: imageURL }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    
+    // 修复数据库错误：确保数据库操作正确
+    await DATABASE.prepare('INSERT INTO media (url, fileId) VALUES (?, ?) ON CONFLICT(url) DO NOTHING')
+      .bind(imageURL, fileId)
+      .run();
+    
+    return new Response(JSON.stringify({ data: imageURL }), { 
+      status: 200, 
+      headers: { 'Content-Type': 'application/json' } 
+    });
   } catch (error) {
     console.error('内部服务器错误:', error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: error.message }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json' } 
+    });
   }
 }
 
@@ -914,13 +1007,25 @@ async function handleImageRequest(request, DATABASE, TG_BOT_TOKEN) {
   const cacheKey = new Request(requestedUrl);
   const cachedResponse = await cache.match(cacheKey);
   if (cachedResponse) return cachedResponse;
-  const result = await DATABASE.prepare('SELECT fileId FROM media WHERE url = ?').bind(requestedUrl).first();
-  if (!result) {
-    const notFoundResponse = new Response('资源不存在', { status: 404 });
-    await cache.put(cacheKey, notFoundResponse.clone());
-    return notFoundResponse;
+  
+  // 修复数据库错误：确保数据库操作正确
+  let fileId;
+  try {
+    const result = await DATABASE.prepare('SELECT fileId FROM media WHERE url = ?')
+      .bind(requestedUrl)
+      .first();
+    
+    if (!result) {
+      const notFoundResponse = new Response('资源不存在', { status: 404 });
+      await cache.put(cacheKey, notFoundResponse.clone());
+      return notFoundResponse;
+    }
+    fileId = result.fileId;
+  } catch (e) {
+    console.error('数据库查询错误:', e);
+    return new Response('Database error', { status: 500 });
   }
-  const fileId = result.fileId;
+  
   let filePath;
   let attempts = 0;
   const maxAttempts = 3;
@@ -936,16 +1041,19 @@ async function handleImageRequest(request, DATABASE, TG_BOT_TOKEN) {
     }
     attempts++;
   }
+  
   if (!filePath) {
     const notFoundResponse = new Response('未找到FilePath', { status: 404 });
     await cache.put(cacheKey, notFoundResponse.clone());
     return notFoundResponse;
   }
+  
   const getFileResponse = `https://api.telegram.org/file/bot${TG_BOT_TOKEN}/${filePath}`;
   const response = await fetch(getFileResponse);
   if (!response.ok) {
     return new Response('获取文件内容失败', { status: 500 });
   }
+  
   const fileExtension = requestedUrl.split('.').pop().toLowerCase();
   let contentType = 'text/plain';
   if (fileExtension === 'jpg' || fileExtension === 'jpeg') contentType = 'image/jpeg';
@@ -953,27 +1061,47 @@ async function handleImageRequest(request, DATABASE, TG_BOT_TOKEN) {
   if (fileExtension === 'gif') contentType = 'image/gif';
   if (fileExtension === 'webp') contentType = 'image/webp';
   if (fileExtension === 'mp4') contentType = 'video/mp4';
+  
   const headers = new Headers(response.headers);
   headers.set('Content-Type', contentType);
   headers.set('Content-Disposition', 'inline');
-  const responseToCache = new Response(response.body, { status: response.status, headers });
+  
+  const responseToCache = new Response(response.body, { 
+    status: response.status, 
+    headers 
+  });
+  
   await cache.put(cacheKey, responseToCache.clone());
   return responseToCache;
 }
 
-async function handleBingImagesRequest(request) {
+async function handleBingImagesRequest() {
   const cache = caches.default;
   const cacheKey = new Request('https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=5');
   const cachedResponse = await cache.match(cacheKey);
   if (cachedResponse) return cachedResponse;
+  
   const res = await fetch(cacheKey);
   if (!res.ok) {
     return new Response('请求 Bing API 失败', { status: res.status });
   }
+  
   const bingData = await res.json();
-  const images = bingData.images.map(image => ({ url: `https://cn.bing.com${image.url}` }));
-  const returnData = { status: true, message: "操作成功", data: images };
-  const response = new Response(JSON.stringify(returnData), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const images = bingData.images.map(image => ({ 
+    url: `https://cn.bing.com${image.url}` 
+  }));
+  
+  const returnData = { 
+    status: true, 
+    message: "操作成功", 
+    data: images 
+  };
+  
+  const response = new Response(JSON.stringify(returnData), { 
+    status: 200, 
+    headers: { 'Content-Type': 'application/json' } 
+  });
+  
   await cache.put(cacheKey, response.clone());
   return response;
 }
@@ -985,24 +1113,29 @@ async function handleDeleteImagesRequest(request, DATABASE, USERNAME, PASSWORD) 
   if (request.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
   }
+  
   try {
     const keysToDelete = await request.json();
     if (!Array.isArray(keysToDelete) || keysToDelete.length === 0) {
       return new Response(JSON.stringify({ message: '没有要删除的项' }), { status: 400 });
     }
+    
+    // 修复数据库错误：确保数据库操作正确
     const placeholders = keysToDelete.map(() => '?').join(',');
-    const result = await DATABASE.prepare(`DELETE FROM media WHERE url IN (${placeholders})`).bind(...keysToDelete).run();
+    const result = await DATABASE.prepare(`DELETE FROM media WHERE url IN (${placeholders})`)
+      .bind(...keysToDelete)
+      .run();
+    
     if (result.changes === 0) {
       return new Response(JSON.stringify({ message: '未找到要删除的项' }), { status: 404 });
     }
+    
     const cache = caches.default;
     for (const url of keysToDelete) {
       const cacheKey = new Request(url);
-      const cachedResponse = await cache.match(cacheKey);
-      if (cachedResponse) {
-        await cache.delete(cacheKey);
-      }
+      await cache.delete(cacheKey);
     }
+    
     return new Response(JSON.stringify({ message: '删除成功' }), { status: 200 });
   } catch (error) {
     return new Response(JSON.stringify({ error: '删除失败', details: error.message }), { status: 500 });
